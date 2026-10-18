@@ -7,33 +7,22 @@ const roles = {
   EXAMINEE: 'examinee'
 };
 
-const state = {
-  users: [],
-  exams: [],
-  attempts: [],
-  auditLogs: [],
-  sseClients: []
-};
-
-function addAudit(actorId, action, payload = {}) {
-  const entry = {
-    id: randomId('audit'),
-    actorId: actorId || null,
-    action,
-    payload,
-    createdAt: nowIso()
-  };
-  state.auditLogs.push(entry);
-  return entry;
+function normalizeMatching(value = {}) {
+  return Object.keys(value)
+    .sort()
+    .reduce((acc, key) => {
+      acc[key] = value[key];
+      return acc;
+    }, {});
 }
 
 function computeAutoScore(attempt, exam) {
-  const answerMap = new Map(attempt.answers.map((a) => [a.questionId, a.value]));
+  const answerMap = new Map((attempt.answers || []).map((a) => [a.questionId, a.value]));
   let score = 0;
   const items = [];
 
-  for (const section of exam.sections) {
-    for (const q of section.questions) {
+  for (const section of exam.sections || []) {
+    for (const q of section.questions || []) {
       const provided = answerMap.get(q.id);
       if (q.type === 'subjective') {
         items.push({ questionId: q.id, objective: false, score: null });
@@ -52,12 +41,13 @@ function computeAutoScore(attempt, exam) {
         correct = JSON.stringify(p) === JSON.stringify(c);
       } else if (q.type === 'numerical') {
         const tolerance = Number(q.tolerance || 0);
-        correct = Math.abs(Number(provided) - Number(q.correct)) <= tolerance;
+        const num = Number(provided);
+        correct = Number.isFinite(num) && Math.abs(num - Number(q.correct)) <= tolerance;
       } else if (q.type === 'matching') {
-        correct = JSON.stringify(provided || {}) === JSON.stringify(q.correct || {});
+        correct = JSON.stringify(normalizeMatching(provided || {})) === JSON.stringify(normalizeMatching(q.correct || {}));
       }
 
-      const itemScore = correct ? mark : provided !== undefined ? -Math.abs(negative) : 0;
+      const itemScore = correct ? mark : provided !== undefined && provided !== null && provided !== '' ? -Math.abs(negative) : 0;
       score += itemScore;
       items.push({ questionId: q.id, objective: true, score: itemScore, correct });
     }
@@ -74,16 +64,18 @@ function examViewForAttempt(exam) {
     startAt: exam.startAt,
     endAt: exam.endAt,
     durationMinutes: exam.durationMinutes,
-    sections: exam.sections.map((section) => ({
+    sections: (exam.sections || []).map((section) => ({
       id: section.id,
       title: section.title,
       timeLimitMinutes: section.timeLimitMinutes,
-      questions: section.questions.map((q) => ({
+      questions: (section.questions || []).map((q) => ({
         id: q.id,
         type: q.type,
         prompt: q.prompt,
         latex: q.latex || null,
         options: q.options || null,
+        leftItems: q.leftItems || null,
+        rightItems: q.rightItems || null,
         marks: q.marks || 1
       }))
     }))
@@ -92,8 +84,8 @@ function examViewForAttempt(exam) {
 
 function randomizeExam(exam) {
   const cloned = JSON.parse(JSON.stringify(exam));
-  cloned.sections = cloned.sections.map((section) => {
-    let questions = [...section.questions];
+  cloned.sections = (cloned.sections || []).map((section) => {
+    let questions = [...(section.questions || [])];
     if (section.randomCount && section.randomCount < questions.length) {
       questions = shuffle(questions).slice(0, section.randomCount);
     }
@@ -112,36 +104,55 @@ function randomizeExam(exam) {
 }
 
 function parseCsvUsers(csvText, tenantId) {
-  const lines = csvText
+  const lines = String(csvText || '')
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  if (lines.length < 2) return [];
+
+  if (lines.length < 2) return { users: [], errors: [{ row: 0, error: 'CSV must include header and at least one record' }] };
+
   const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
   const nameIdx = headers.indexOf('name');
   const emailIdx = headers.indexOf('email');
   const users = [];
+  const errors = [];
+  const seen = new Set();
 
-  for (const line of lines.slice(1)) {
+  if (emailIdx < 0) return { users: [], errors: [{ row: 0, error: 'Missing required email column' }] };
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  lines.slice(1).forEach((line, rowOffset) => {
+    const row = rowOffset + 2;
     const cols = line.split(',').map((c) => c.trim());
-    if (!cols[emailIdx]) continue;
+    const email = (cols[emailIdx] || '').toLowerCase();
+    if (!emailRegex.test(email)) {
+      errors.push({ row, error: 'Invalid email format' });
+      return;
+    }
+    const key = `${tenantId}:${email}`;
+    if (seen.has(key)) {
+      errors.push({ row, error: 'Duplicate email in upload' });
+      return;
+    }
+    seen.add(key);
     users.push({
       id: randomId('user'),
       tenantId,
       name: cols[nameIdx] || 'Unnamed Candidate',
-      email: cols[emailIdx].toLowerCase(),
+      email,
       role: roles.EXAMINEE,
       passwordHash: null,
-      accessCode: randomId('acc').slice(-8)
+      accessCode: randomId('acc').slice(-8),
+      createdAt: nowIso()
     });
-  }
-  return users;
+  });
+
+  return { users, errors };
 }
 
 module.exports = {
   roles,
-  state,
-  addAudit,
   computeAutoScore,
   examViewForAttempt,
   randomizeExam,
