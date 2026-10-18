@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NTA-style Mock Test</title>
+    <script defer src="/public/app.js"></script>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
+      .top { background:#124d9c; color:#fff; padding:10px 16px; display:flex; justify-content:space-between; }
+      .layout { display:grid; grid-template-columns: 1fr 280px; gap: 16px; padding: 16px; }
+      .card { background:#fff; border-radius:8px; padding:16px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+      .timer { font-weight: bold; color: #b00020; }
+      .question-btn { width: 40px; height: 40px; margin: 4px; border: 1px solid #ccc; border-radius: 6px; }
+      .active { background:#124d9c; color:#fff; }
+      .hidden { display:none; }
+      .warn { color: #b00020; font-size: 0.9rem; }
+      button { cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <div>Online Examination System</div>
+      <div id="clock" class="timer">--:--</div>
+    </div>
+
+    <div id="auth" class="card" style="max-width:420px;margin:30px auto;">
+      <h2>Candidate Login</h2>
+      <input id="tenant" placeholder="Tenant" value="demo" /><br /><br />
+      <input id="email" placeholder="Email" value="student@demo.com" /><br /><br />
+      <input id="password" placeholder="Password" type="password" value="Pass@123" /><br /><br />
+      <input id="examId" placeholder="Exam ID" /><br /><br />
+      <button id="loginBtn">Login & Start Exam</button>
+      <p id="authMsg" class="warn"></p>
+    </div>
+
+    <div id="exam" class="layout hidden">
+      <div class="card">
+        <h3 id="examTitle"></h3>
+        <h4 id="sectionTitle"></h4>
+        <div id="question"></div>
+        <div id="options"></div>
+        <p class="warn" id="warning"></p>
+        <button id="saveNext">Save & Next</button>
+        <button id="submitExam">Submit</button>
+      </div>
+      <div class="card">
+        <h4>Question Palette</h4>
+        <div id="palette"></div>
+      </div>
+    </div>
+  </body>
+</html>
