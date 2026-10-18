@@ -1,0 +1,10 @@
+{
+  "name": "exam-system",
+  "version": "1.0.0",
+  "description": "Secure multi-tenant examination system",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  }
+}
